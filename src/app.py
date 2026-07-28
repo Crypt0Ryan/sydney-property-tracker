@@ -164,6 +164,52 @@ st.caption(
     "SQM Research, city-wide only. Listed-vs-sold spread isn't available - see README."
 )
 
+with st.expander("ℹ️ How this works / where the data comes from"):
+    st.markdown(
+        """
+**What this shows**
+
+- **Overall Sydney trend** - the average or median residential sale price
+  each month (or quarter), with the number of sales underneath so you can
+  see how much data each point is based on.
+- **Auction clearance rate** - the % of Sydney auctions each week that
+  actually sold (either before or at auction), city-wide.
+- **Postcode overlay** - pick any postcodes to compare their price trends
+  against each other and against the Sydney-wide average.
+- **Sidebar "Latest change"** - how much the price moved from the previous
+  period to the most recent one, for Sydney overall and each postcode you've
+  selected, with sale counts so you can judge whether it's a real move or
+  just a quiet month (see caveats below).
+
+**Where the data comes from**
+
+- **Sale prices**: every residential property sale registered in NSW, sourced
+  from the NSW Valuer General (the government body that records this) via a
+  free, cleaned copy at nswpropertysalesdata.com.
+- **Auction clearance rate**: published weekly by SQM Research, an
+  independent property research firm.
+
+Both are free public data. There's no "listed price vs. sold price" (bid/ask
+spread) feature because that data isn't publicly available - it would require
+scraping real estate listing sites, which actively block that.
+
+**A few things worth knowing**
+
+- **Recent months look artificially low.** A sale isn't registered with the
+  government until weeks-to-months after it happens, so the most recent
+  ~3 months are always incomplete. The date range defaults to hiding them;
+  drag it forward if you want to see the (incomplete) latest data anyway.
+- **A postcode's average price can swing a lot in a quiet month** (e.g.
+  January, when far fewer properties settle) just because a handful of
+  cheaper or pricier sales happened to land in that period - not because
+  prices actually moved that much. Check the sale counts before reading too
+  much into a big jump. Median price is less sensitive to this than average.
+- **Clearance rate is Sydney-wide only** - there's no reliable free source
+  for a per-postcode breakdown.
+- Data refreshes automatically about once a week.
+        """
+    )
+
 min_date, max_date = load_date_bounds()
 reliable_end = max_date - timedelta(days=SETTLEMENT_LAG_DAYS)
 
