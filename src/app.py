@@ -142,22 +142,19 @@ def smooth(df: pd.DataFrame, cols: list[str], window: int) -> pd.DataFrame:
     return df
 
 
-def latest_change(df: pd.DataFrame, col: str) -> tuple[float, float] | tuple[None, None]:
-    """Latest value and period-on-period % change, from unsmoothed data."""
-    if len(df) < 2:
-        return None, None
-    latest = df[col].iloc[-1]
-    prev = df[col].iloc[-2]
-    if pd.isna(latest) or pd.isna(prev) or prev == 0:
-        return latest, None
-    return latest, (latest - prev) / prev * 100
-
-
 def show_change_metric(label: str, df: pd.DataFrame, col: str) -> None:
-    latest, pct = latest_change(df, col)
-    if latest is None:
+    """Latest value and period-on-period % change, from unsmoothed data -
+    plus the underlying sale counts, since a postcode's average/median price
+    can swing sharply on a thin month (e.g. a quiet January) with nothing
+    real behind it.
+    """
+    if len(df) < 2:
         return
+    latest, prev = df[col].iloc[-1], df[col].iloc[-2]
+    n_latest, n_prev = df["num_sales"].iloc[-1], df["num_sales"].iloc[-2]
+    pct = None if pd.isna(latest) or pd.isna(prev) or prev == 0 else (latest - prev) / prev * 100
     st.metric(label, f"${latest:,.0f}", f"{pct:+.1f}%" if pct is not None else None)
+    st.caption(f"{n_latest:.0f} sales (prev period: {n_prev:.0f})")
 
 
 st.title("Sydney Property Tracker")
