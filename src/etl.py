@@ -3,8 +3,10 @@ which itself cleans the NSW Valuer General bulk Property Sales Information)
 into a local DuckDB file, filtered to residential sales, with monthly
 aggregates by postcode ready for charting.
 
-Re-run this any time a fresh CSV is dropped in data/ (filenames carry a date
-so old and new can coexist; DuckDB reads them all via glob).
+Each download from nswpropertysalesdata.com is a full replacement (the last
+~6 years), not a delta - so this only ever reads the single most recently
+dated CSV in data/, never a glob of all of them, otherwise old and new would
+get UNIONed together and double-count every sale that appears in both.
 """
 
 from pathlib import Path
@@ -13,10 +15,17 @@ import duckdb
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 DB_PATH = DATA_DIR / "sydney_property.duckdb"
-CSV_GLOB = str(DATA_DIR / "nsw-property-sales-data-*.csv")
+
+
+def latest_csv() -> Path:
+    candidates = sorted(DATA_DIR.glob("nsw-property-sales-data-*.csv"))
+    if not candidates:
+        raise FileNotFoundError(f"No nsw-property-sales-data-*.csv found in {DATA_DIR}")
+    return candidates[-1]
 
 
 def run() -> None:
+    csv_path = latest_csv()
     con = duckdb.connect(str(DB_PATH))
 
     con.execute(
@@ -32,7 +41,7 @@ def run() -> None:
             TRY_CAST("Area" AS DOUBLE) AS area,
             "Area type" AS area_type,
             "Zoning" AS zoning
-        FROM read_csv_auto('{CSV_GLOB}', ALL_VARCHAR = TRUE, UNION_BY_NAME = TRUE)
+        FROM read_csv_auto('{csv_path.as_posix()}', ALL_VARCHAR = TRUE)
         WHERE "Primary purpose" = 'Residence'
           AND TRY_CAST("Purchase price" AS DOUBLE) > 10000
           AND TRY_CAST("Contract date" AS DATE) >= DATE '2000-01-01'

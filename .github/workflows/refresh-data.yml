@@ -1,0 +1,43 @@
+name: Refresh data
+
+on:
+  schedule:
+    # 01:00 UTC every Wednesday - after SQM Research's Tuesday-afternoon
+    # (Sydney time) weekly clearance-rate publish, whatever DST is in effect.
+    - cron: "0 1 * * 3"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install duckdb pandas requests
+
+      - name: Download latest NSW property sales data
+        run: |
+          rm -f data/*.csv data/*.zip
+          curl -sL -o data/archive.zip https://nswpropertysalesdata.com/data/archive.zip
+          unzip -o data/archive.zip -d data
+
+      - name: Run ETL
+        run: |
+          python src/etl.py
+          python src/etl_clearance.py
+
+      - name: Commit and push if data changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/sydney_property.duckdb
+          git diff --cached --quiet && echo "No data changes" || git commit -m "Weekly data refresh"
+          git push
