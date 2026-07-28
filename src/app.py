@@ -142,6 +142,24 @@ def smooth(df: pd.DataFrame, cols: list[str], window: int) -> pd.DataFrame:
     return df
 
 
+def latest_change(df: pd.DataFrame, col: str) -> tuple[float, float] | tuple[None, None]:
+    """Latest value and period-on-period % change, from unsmoothed data."""
+    if len(df) < 2:
+        return None, None
+    latest = df[col].iloc[-1]
+    prev = df[col].iloc[-2]
+    if pd.isna(latest) or pd.isna(prev) or prev == 0:
+        return latest, None
+    return latest, (latest - prev) / prev * 100
+
+
+def show_change_metric(label: str, df: pd.DataFrame, col: str) -> None:
+    latest, pct = latest_change(df, col)
+    if latest is None:
+        return
+    st.metric(label, f"${latest:,.0f}", f"{pct:+.1f}%" if pct is not None else None)
+
+
 st.title("Sydney Property Tracker")
 st.caption(
     "Sale prices from NSW property sales data (via nswpropertysalesdata.com, sourced from "
@@ -194,8 +212,13 @@ if date_range[1] > reliable_end:
 # ---- Overall Sydney trend ----
 st.subheader("Overall Sydney trend")
 overall = load_overall(granularity_sql, date_range[0], date_range[1])
-overall = smooth(overall, ["avg_price", "median_price"], smoothing_window)
-overall_label = [period_label(p, granularity_sql) for p in overall["period"]]
+overall_chart = smooth(overall, ["avg_price", "median_price"], smoothing_window)
+overall_label = [period_label(p, granularity_sql) for p in overall_chart["period"]]
+
+period_unit = "MoM" if granularity_sql == "month" else "QoQ"
+with st.sidebar:
+    st.header(f"Latest change ({period_unit})")
+    show_change_metric("Sydney overall", overall, metric_col)
 
 fig_overall = make_subplots(
     rows=2,
@@ -206,8 +229,8 @@ fig_overall = make_subplots(
 )
 fig_overall.add_trace(
     go.Scatter(
-        x=overall["period"],
-        y=overall[metric_col],
+        x=overall_chart["period"],
+        y=overall_chart[metric_col],
         mode="lines",
         line=dict(color=PALETTE[0], width=2),
         name="Sydney overall",
@@ -219,8 +242,8 @@ fig_overall.add_trace(
 )
 fig_overall.add_trace(
     go.Bar(
-        x=overall["period"],
-        y=overall["num_sales"],
+        x=overall_chart["period"],
+        y=overall_chart["num_sales"],
         marker=dict(color=INK_MUTED),
         name="Sales volume",
         customdata=overall_label,
@@ -364,8 +387,8 @@ if selected_postcodes:
     if show_sydney_ref:
         fig_overlay.add_trace(
             go.Scatter(
-                x=overall["period"],
-                y=overall[metric_col],
+                x=overall_chart["period"],
+                y=overall_chart[metric_col],
                 mode="lines",
                 line=dict(color=SYDNEY_REF_COLOR, width=2, dash="dash"),
                 name="Sydney overall",
@@ -373,6 +396,14 @@ if selected_postcodes:
                 hovertemplate="Sydney overall<br>%{customdata}<br>$%{y:,.0f}<extra></extra>",
             )
         )
+
+    with st.sidebar:
+        for postcode in selected_postcodes:
+            raw_series = pc_df[pc_df["postcode"] == postcode].sort_values("period")
+            label = next(
+                (lbl for lbl, pc in label_to_postcode.items() if pc == postcode), str(postcode)
+            )
+            show_change_metric(label, raw_series, metric_col)
 
     for i, postcode in enumerate(selected_postcodes):
         series = pc_df[pc_df["postcode"] == postcode].sort_values("period")
